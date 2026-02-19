@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.edupack.p02.p024.mapper.P024MemberMapper">
+
+	<!-- cate Products -->
+	<select id="getProdDetail" parameterType="String" resultType="map">	
+		 SELECT PRODUCT_ID, PRODUCT_NAME, CATEGORY, PRICE,
+		 	KCAL, SUGARS, PROTEIN, SODIUM, SAT_FAT, CAFFEINE,
+		 	IMAGE_FILE
+	     FROM p024_drink
+	     WHERE PRODUCT_ID = #{prodId}
+	</select>
+	
+	<select id="getProdDetailNoNut" parameterType="String" resultType="map">	
+		 SELECT PRODUCT_ID, PRODUCT_NAME, CATEGORY, PRICE,
+		 	IMAGE_FILE
+	     FROM p024_food
+	     WHERE PRODUCT_ID = #{prodId}
+	</select>
+	
+	<select id="getDrinkInfo" resultType="map">
+		SELECT PRODUCT_ID, PRODUCT_NAME, CATEGORY, PRICE,
+		 	IMAGE_FILE
+	    FROM p024_drink
+	</select>
+	    
+	<select id="getDrinkInfo2" parameterType="map" resultType="map">
+	    SELECT
+			sub.ROWNUM,
+			sub.PRODUCT_ID,
+			sub.PRODUCT_NAME,
+			sub.CATEGORY,
+			sub.PRICE,
+			sub.IMAGE_FILE
+		FROM 
+		(
+			SELECT 
+			ROW_NUMBER() OVER (ORDER BY CATEGORY,PRODUCT_NAME) AS ROWNUM
+			, PRODUCT_ID, PRODUCT_NAME, CATEGORY, PRICE,
+		 	IMAGE_FILE
+			FROM p024_drink
+		)AS sub
+		ORDER BY ROWNUM  
+		LIMIT #{records} OFFSET #{recordsOffset}
+	</select>
+	
+	<select id="getFoodInfo" resultType="map">
+		SELECT PRODUCT_ID, PRODUCT_NAME, CATEGORY, PRICE,
+		 	IMAGE_FILE
+	    FROM p024_food
+	</select>	
+	
+	
+	<!-- cate Login&Auth -->
+	<insert id="registerUser" parameterType="map">
+		INSERT INTO p024_users
+	                (LOGIN_EMAIL, LOGIN_PW, NAME, USER_TYPE)
+	         VALUES (#{LOGIN_EMAIL}, #{LOGIN_PW}, #{NAME}, "Cust")	
+	</insert>
+	
+	<insert id="registerStaff" parameterType="map">
+		INSERT INTO p024_users
+	                (LOGIN_EMAIL, LOGIN_PW, NAME, STORE_CODE, USER_TYPE)
+	         VALUES (#{LOGIN_EMAIL}, #{LOGIN_PW}, #{NAME}, #{STORE_CODE}, "Staff")	
+	</insert>
+	
+	<select id="requestLogin" parameterType="map" resultType="map">
+	    SELECT 
+	        LOGIN_EMAIL, 
+	        NAME, 
+	        USER_TYPE, 
+	        CREATED_AT,
+	        CASE 
+	            WHEN USER_TYPE = 'Staff' THEN STORE_CODE
+	            ELSE NULL 
+	        END AS STORE_CODE
+	    FROM p024_users
+	    WHERE LOGIN_EMAIL = #{LOGIN_EMAIL}
+	      AND LOGIN_PW = #{LOGIN_PW}
+	</select>
+	
+	<select id="isValidEmail" parameterType="String" resultType="boolean">
+    SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
+     FROM p024_users 
+     WHERE LOGIN_EMAIL = #{inputEmail}
+	</select>
+	
+	<select id="isValidCode" parameterType="String" resultType="boolean">
+    SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+     FROM p024_store 
+     WHERE STORE_CODE = #{inputCode}
+	</select>
+	
+	
+	<!-- cate ProdCart -->
+	<insert id="addToCart" parameterType="String">
+		INSERT INTO p024_usercart(LOGIN_EMAIL, PRODUCT_ID, COUNT, STATUS_TYPE)
+		VALUES (#{userId}, #{prodId}, 1, 0)
+		ON DUPLICATE KEY UPDATE
+        COUNT = COUNT + 1  
+	</insert>
+	
+	<select id="getCartInfo" parameterType="String" resultType="map">
+		SELECT *
+		FROM p024_usercart
+		WHERE LOGIN_EMAIL = #{userId}
+	</select>
+	
+	<select id="getCartProdInfo" parameterType="string" resultType="map">
+    SELECT
+    	B.PRODUCT_ID, 
+        B.PRODUCT_NAME, 
+        B.PRICE,
+        A.COUNT,
+        CONCAT('http://172.10.14.128:8088/edupack_egov/upload/p02/p024/', B.IMAGE_FILE) AS IMAGE_FILE
+    FROM p024_usercart AS A
+    INNER JOIN (
+        SELECT PRODUCT_ID, PRODUCT_NAME, PRICE, IMAGE_FILE FROM p024_drink
+        UNION ALL
+        SELECT PRODUCT_ID, PRODUCT_NAME, PRICE, IMAGE_FILE FROM p024_food
+    ) AS B
+    ON A.product_id = B.PRODUCT_ID
+    WHERE A.login_email = #{userId}
+	</select>
+	
+	<delete id="deleteProdCart" parameterType="map">
+	DELETE FROM p024_usercart
+	WHERE LOGIN_EMAIL = #{LOGIN_EMAIL}
+	AND PRODUCT_ID = #{PRODUCT_ID}
+	</delete>
+	
+	
+	<!-- cate Store -->
+	<select id="getStoreList" resultType="map">
+	SELECT STORE_CODE, STORE_NAME, ADDRESS
+	FROM p024_store
+	LIMIT 50
+	</select>
+	
+	<select id="getStoreLocation" resultType="map">
+	SELECT STORE_NAME, LAT, LON, ADDRESS
+	FROM p024_store
+	LIMIT 50
+	</select>
+	
+	
+	<!-- cate SirenOrder -->
+	<insert id="sendToStore" parameterType="string">
+	    INSERT INTO p024_storeorders (
+	    	ORDER_ID,
+	    	STORE_CODE,
+	        LOGIN_EMAIL,
+	        PRODUCT_ID,
+	        COUNT,
+	        STATUS_TYPE
+	    )
+	    SELECT
+	    	#{orderId},
+	    	#{storeCode}, 
+	        LOGIN_EMAIL,
+	        PRODUCT_ID,
+	        COUNT,
+	        1
+	    FROM p024_usercart
+	    WHERE LOGIN_EMAIL = #{userId}
+	</insert>
+	<insert id="sendToUserHist" parameterType="string">
+	    INSERT INTO p024_userhist (
+	    	ORDER_ID,
+	    	STORE_CODE,
+	        LOGIN_EMAIL,
+	        PRODUCT_ID,
+	        COUNT
+	    )
+	    SELECT
+		    #{orderId},
+	    	#{storeCode},
+	        LOGIN_EMAIL,
+	        PRODUCT_ID,
+	        COUNT           
+	    FROM p024_usercart
+	    WHERE LOGIN_EMAIL = #{userId}
+	</insert>
+	<delete id="deleteUserCart" parameterType="string">
+	    DELETE FROM p024_usercart
+	    WHERE LOGIN_EMAIL = #{userId}
+	</delete>
+	
+	<select id="getOrderList" parameterType="string" resultType="map">
+	    SELECT 
+	        A.ORDER_ID, 
+	        A.LOGIN_EMAIL, 
+	        A.PRODUCT_ID, 
+	        -- 드링크나 푸드 테이블 중 이름이 있는 쪽을 가져옴
+	        COALESCE(B.PRODUCT_NAME, C.PRODUCT_NAME) AS PRODUCT_NAME,
+	        A.COUNT, 
+	        A.STATUS_TYPE, 
+	        A.ORDERED_AT
+	    FROM p024_storeorders A
+	    LEFT JOIN p024_drink B ON A.PRODUCT_ID = B.PRODUCT_ID
+	    LEFT JOIN p024_food C ON A.PRODUCT_ID = C.PRODUCT_ID
+	    WHERE A.STORE_ID = #{strTopicId}
+	    ORDER BY A.ORDERED_AT DESC
+	</select>
+	
+</mapper>
