@@ -138,7 +138,7 @@
 	</select>
 	
 	<select id="getStoreLocation" resultType="map">
-	SELECT STORE_NAME, LAT, LON, ADDRESS
+	SELECT STORE_CODE, STORE_NAME, LAT, LON, ADDRESS
 	FROM p024_store
 	LIMIT 50
 	</select>
