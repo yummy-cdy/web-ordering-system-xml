@@ -54,14 +54,14 @@
 	<!-- cate Login&Auth -->
 	<insert id="registerUser" parameterType="map">
 		INSERT INTO p024_users
-	                (LOGIN_EMAIL, LOGIN_PW, NAME, USER_TYPE)
-	         VALUES (#{LOGIN_EMAIL}, #{LOGIN_PW}, #{NAME}, "Cust")	
+			(LOGIN_EMAIL, LOGIN_PW, NAME, USER_TYPE)
+		VALUES (#{LOGIN_EMAIL}, #{LOGIN_PW}, #{NAME}, "Cust")	
 	</insert>
 	
 	<insert id="registerStaff" parameterType="map">
 		INSERT INTO p024_users
-	                (LOGIN_EMAIL, LOGIN_PW, NAME, STORE_CODE, USER_TYPE)
-	         VALUES (#{LOGIN_EMAIL}, #{LOGIN_PW}, #{NAME}, #{STORE_CODE}, "Staff")	
+			(LOGIN_EMAIL, LOGIN_PW, NAME, STORE_CODE, USER_TYPE)
+		VALUES (#{LOGIN_EMAIL}, #{LOGIN_PW}, #{NAME}, #{STORE_CODE}, "Staff")	
 	</insert>
 	
 	<select id="requestLogin" parameterType="map" resultType="map">
@@ -73,22 +73,23 @@
 	        CASE 
 	            WHEN USER_TYPE = 'Staff' THEN STORE_CODE
 	            ELSE NULL 
-	        END AS STORE_CODE
+	        END AS STORE_CODE,
+	        IS_IN_ORDER
 	    FROM p024_users
 	    WHERE LOGIN_EMAIL = #{LOGIN_EMAIL}
 	      AND LOGIN_PW = #{LOGIN_PW}
 	</select>
 	
 	<select id="isValidEmail" parameterType="String" resultType="boolean">
-    SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
-     FROM p024_users 
-     WHERE LOGIN_EMAIL = #{inputEmail}
+		SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END
+		FROM p024_users 
+		WHERE LOGIN_EMAIL = #{inputEmail}
 	</select>
 	
 	<select id="isValidCode" parameterType="String" resultType="boolean">
-    SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-     FROM p024_store 
-     WHERE STORE_CODE = #{inputCode}
+	    SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+	    FROM p024_store
+	    WHERE STORE_CODE = #{inputCode}
 	</select>
 	
 	
@@ -124,25 +125,37 @@
 	</select>
 	
 	<delete id="deleteProdCart" parameterType="map">
-	DELETE FROM p024_usercart
-	WHERE LOGIN_EMAIL = #{LOGIN_EMAIL}
-	AND PRODUCT_ID = #{PRODUCT_ID}
+		DELETE FROM p024_usercart
+		WHERE LOGIN_EMAIL = #{LOGIN_EMAIL}
+		AND PRODUCT_ID = #{PRODUCT_ID}
 	</delete>
 	
 	
 	<!-- cate Store -->
 	<select id="getStoreList" resultType="map">
-	SELECT STORE_CODE, STORE_NAME, ADDRESS
-	FROM p024_store
-	LIMIT 50
+		SELECT STORE_CODE, STORE_NAME, ADDRESS
+		FROM p024_store
+		LIMIT 50
 	</select>
 	
 	<select id="getStoreLocation" resultType="map">
-	SELECT STORE_CODE, STORE_NAME, LAT, LON, ADDRESS
-	FROM p024_store
-	LIMIT 50
+		SELECT STORE_CODE, STORE_NAME, LAT, LON, ADDRESS
+		FROM p024_store
+		LIMIT 50
 	</select>
 	
+	<select id="getStoreDetail" parameterType="string" resultType="map">
+		SELECT STORE_NAME, ADDRESS
+		FROM p024_store
+		WHERE LAT = #{storeCode}
+		LIMIT 50
+	</select>
+	
+	<select id="getStoreName" parameterType="string" resultType="string">
+		SELECT STORE_NAME
+		FROM p024_store
+		WHERE STORE_CODE = #{storeCode}
+	</select>
 	
 	<!-- cate SirenOrder -->
 	<insert id="sendToStore" parameterType="string">
@@ -185,22 +198,57 @@
 	    DELETE FROM p024_usercart
 	    WHERE LOGIN_EMAIL = #{userId}
 	</delete>
+	<update id="updateOrderId">
+		UPDATE p024_users
+		SET IS_IN_ORDER = #{orderId}
+		WHERE LOGIN_EMAIL = #{userId}
+	</update>
+	
 	
 	<select id="getOrderList" parameterType="string" resultType="map">
-	    SELECT 
-	        A.ORDER_ID, 
-	        A.LOGIN_EMAIL, 
-	        A.PRODUCT_ID, 
-	        -- 드링크나 푸드 테이블 중 이름이 있는 쪽을 가져옴
-	        COALESCE(B.PRODUCT_NAME, C.PRODUCT_NAME) AS PRODUCT_NAME,
-	        A.COUNT, 
-	        A.STATUS_TYPE, 
-	        A.ORDERED_AT
-	    FROM p024_storeorders A
-	    LEFT JOIN p024_drink B ON A.PRODUCT_ID = B.PRODUCT_ID
-	    LEFT JOIN p024_food C ON A.PRODUCT_ID = C.PRODUCT_ID
-	    WHERE A.STORE_ID = #{strTopicId}
-	    ORDER BY A.ORDERED_AT DESC
-	</select>
+    SELECT 
+        A.ORDER_ID, 
+        A.LOGIN_EMAIL,
+        D.NAME AS NAME,
+        A.PRODUCT_ID, 
+        COALESCE(B.PRODUCT_NAME, C.PRODUCT_NAME) AS PRODUCT_NAME,
+        A.COUNT, 
+        A.STATUS_TYPE, 
+        A.ORDERED_AT
+    FROM p024_storeorders A
+    LEFT JOIN p024_drink B ON A.PRODUCT_ID = B.PRODUCT_ID
+    LEFT JOIN p024_food C ON A.PRODUCT_ID = C.PRODUCT_ID
+    LEFT JOIN p024_users D ON A.LOGIN_EMAIL = D.LOGIN_EMAIL
+    WHERE A.STORE_CODE = #{strTopicId}
+    ORDER BY A.ORDERED_AT DESC
+</select>
+	
+	<select id="getUserHist" parameterType="String" resultType="map">
+    SELECT 
+        A.ORDER_ID, 
+        A.STORE_CODE, 
+        A.LOGIN_EMAIL,
+        B.STATUS_TYPE
+    FROM p024_userhist A
+    INNER JOIN p024_storeorders B ON A.ORDER_ID = B.ORDER_ID
+    WHERE A.ORDER_ID = #{strOrderId}
+    LIMIT 1
+</select>
+	
+	<update id="updateStatus" parameterType="map">
+	UPDATE p024_storeorders
+	SET STATUS_TYPE = #{MSG} 
+	WHERE ORDER_ID = #{CODE}
+	</update>
+	
+	<delete id="deleteStoreOrder" parameterType="string">
+	    DELETE FROM p024_storeorders
+	    WHERE ORDER_ID = #{orderId}
+	</delete>
+	<update id="clearUserOrder" parameterType="string">
+	    UPDATE p024_users
+	    SET IS_IN_ORDER = NULL
+	    WHERE IS_IN_ORDER = #{orderId}
+	</update>
 	
 </mapper>
